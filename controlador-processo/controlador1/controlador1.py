@@ -33,7 +33,8 @@ def on_message(client, userdata, msg):
     
     if (umidade < retorna_limiar()):
         print("Enviado: " + str(umidade))
-        client.publish("/molhar", umidade)
+        dados_enviar = f'{str(umidade)},{data_atual}'
+        client.publish("/molhar", dados_enviar)
 
 def on_publish(client, userdata, mid):
     pass
