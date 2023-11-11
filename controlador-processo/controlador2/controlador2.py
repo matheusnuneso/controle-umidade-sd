@@ -3,9 +3,6 @@ import psycopg2
 from datetime import datetime
 import rpyc
 
-# conexão rpc com o outro procceso
-proxy = rpyc.connect('localhost', 18861, config={'allow_public_attrs': True})
-
 # Parâmetros de conexão com o bd
 dbname = 'postgres'
 user = 'postgres'
@@ -32,9 +29,7 @@ def on_message(client, userdata, msg):
     umidade = int(dados.split(',')[0])
     data_atual = dados.split(',')[1]
 
-    equipara_dados()
-
-    salva_umidade_bd(umidade, data_atual)
+    equipara_dados(umidade, data_atual)
     
     if (umidade < retorna_limiar()):
         print("Enviado: " + str(umidade))
@@ -67,10 +62,11 @@ def retorna_ultimo_id():
     cur.execute(select_query)
     return cur.fetchone()[0]
 
-def equipara_dados():
+def equipara_dados(umidade, data_atual):
     id_meu = retorna_ultimo_id()
 
     try:
+        proxy = rpyc.connect('localhost', 18861, config={'allow_public_attrs': True})
         id_outro = proxy.root.retorna_ultimo_id()
 
         #esse processo está atrasado
@@ -83,8 +79,12 @@ def equipara_dados():
             for dado in lista_dados_perdidos:
                 salva_retorativo_umidade_bd(dado)
 
-    except EOFError as e:
+        else:
+            salva_umidade_bd(umidade, data_atual)
+
+    except (EOFError, TypeError, ConnectionRefusedError) as e:
         print("Outro servidor fora")
+        salva_umidade_bd(umidade, data_atual)
 
 def retorna_limiar():
     select_query = 'SELECT * FROM limiar;'
