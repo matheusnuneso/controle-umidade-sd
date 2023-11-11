@@ -73,19 +73,28 @@ def equipara_dados():
     try:
         id_outro = proxy.root.retorna_ultimo_id()
 
+        #esse processo está atrasado
         if(id_meu < id_outro):
             lista_dados_perdidos = proxy.root.retorna_dados_perdidos(id_meu + 1, id_outro)
+
+            limiar_atual = proxy.root.retorna_limiar()
+            altera_limiar(limiar_atual)
 
             for dado in lista_dados_perdidos:
                 salva_retorativo_umidade_bd(dado)
 
     except EOFError as e:
-        print("CAPTUREI")
+        print("Outro servidor fora")
 
 def retorna_limiar():
     select_query = 'SELECT * FROM limiar;'
     cur.execute(select_query)
     return cur.fetchone()[0]
+
+def altera_limiar(novo_limiar):
+    update_query = f"UPDATE limiar SET limiar = {novo_limiar};"
+    cur.execute(update_query)
+    conn.commit()
 
 client = mqtt.Client()
 client.connect(broker, port)

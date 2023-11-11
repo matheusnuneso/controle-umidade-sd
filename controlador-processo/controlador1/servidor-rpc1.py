@@ -40,5 +40,10 @@ class Servidor1(rpyc.Service):
         cur.execute(update_query)
         conn.commit()
 
+    def exposed_retorna_limiar(self):
+        select_query = 'SELECT * FROM limiar;'
+        cur.execute(select_query)
+        return cur.fetchone()[0]
+
 t = ThreadedServer(Servidor1, port=18861)
 t.start()
