@@ -138,6 +138,7 @@ def incrementa_num_processo():
     executa_query(update_query)
 
 def executa_query(query):
+    conn = None
     try:
         conn = psycopg2.connect(string_connetion_bd1)
         cur = conn.cursor()
@@ -148,6 +149,11 @@ def executa_query(query):
     except psycopg2.OperationalError as e:
         print('BANCO 1 fora')
 
+    finally:
+        if(conn):
+            conn.close()
+
+    conn2 = None
     try:
         conn2 = psycopg2.connect(string_connetion_bd2)
         cur2 = conn2.cursor()
@@ -158,7 +164,13 @@ def executa_query(query):
     except psycopg2.OperationalError as e:
         print('BANCO 2 fora')
 
+    finally:
+        if(conn2):
+            conn2.close()
+
 def executa_select_query(query):
+    conn = None
+    conn2 = None
     try:
         conn = psycopg2.connect(string_connetion_bd1)
         cur = conn.cursor()
@@ -201,6 +213,7 @@ def executa_select_query_2_bancos(query):
     return [dados_banco1, dados_banco2]
 
 def verifica_conexao_bd(string_conexao):
+    conn_teste = None
     try:
         conn_teste = psycopg2.connect(string_conexao)
         cur_teste = conn_teste.cursor()
@@ -212,7 +225,7 @@ def verifica_conexao_bd(string_conexao):
         return False
     
     finally:
-        if conn_teste:
+        if(conn_teste):
             conn_teste.close()
 
 client = mqtt.Client()
