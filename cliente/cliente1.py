@@ -1,8 +1,11 @@
 import rpyc
+import random
 import json
 from flask import Flask, request, jsonify
 
 app = Flask(__name__)
+
+porta_controls = [18861, 18862]
 
 porta_control1 = 18861
 porta_control2 = 18862
@@ -31,24 +34,29 @@ def buscar_dados():
 @app.route('/', methods=['PUT'])
 def atualiza_limiar():
     sucesso_control = False
-
     novo_limiar = request.args.get('novo_limiar')
 
+    random_gerado = random.randint(0, 1)
+
+    controlador = porta_controls[random_gerado]
+    controlador_reserva = porta_control2 if controlador == porta_control1 else porta_control1
+
     try:
-        proxy_control1 = rpyc.connect('localhost', porta_control1, config={'allow_public_attrs': True})
-        proxy_control1.root.altera_limiar(novo_limiar)
+        proxy_control = rpyc.connect('localhost', controlador, config={'allow_public_attrs': True})
+        proxy_control.root.altera_limiar(novo_limiar)
         sucesso_control = True
 
     except ConnectionRefusedError as e:
-        print('CONTROLADOR 1 FORA DO AR')
+        print(f'CONTROLADOR {random_gerado+1} FORA DO AR')
 
-    try:
-        proxy_control2 = rpyc.connect('localhost', porta_control2, config={'allow_public_attrs': True})
-        proxy_control2.root.altera_limiar(novo_limiar)
-        sucesso_control = True
+        try:
+            proxy_control_reserva = rpyc.connect('localhost', controlador_reserva, config={'allow_public_attrs': True})
+            proxy_control_reserva.root.altera_limiar(novo_limiar)
+            sucesso_control = True
 
-    except ConnectionRefusedError as e:
-        print('CONTROLADOR 2 FORA DO AR')
+        except ConnectionRefusedError as e:
+            random_gerado_reserva = 0 if random_gerado == 1 else 1
+            print(f'CONTROLADOR {random_gerado_reserva+1} FORA DO AR')
     
     if(sucesso_control):
         return jsonify({"sucesso": True, "novo-limiar": novo_limiar})
