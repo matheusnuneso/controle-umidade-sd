@@ -7,7 +7,7 @@ import rpyc
 dbname = 'postgres'
 user = 'postgres'
 password = '123456'
-host = 'localhost' 
+host = 'localhost'
 port_bd1 = '5432'
 port_bd2 = '5433'
 
@@ -33,7 +33,8 @@ def on_message(client, userdata, msg):
     #se não, verifico se o outro está on
     #se estiver on, ele faz. Caso esteja off, eu faço
     if(num_processo % 2 != 0):
-        print('EU vou fazer - ' + str(num_processo))
+        #print('EU vou fazer - ' + str(num_processo))
+        rotina_salvar_bds(msg.payload.decode())
         incrementa_num_processo()
 
     else:
@@ -43,22 +44,33 @@ def on_message(client, userdata, msg):
                 print('OUTRO faz')
 
         except ConnectionRefusedError:
-            print('EU vou fazer - ' + str(num_processo))
+            #print('EU vou fazer - ' + str(num_processo))
+            rotina_salvar_bds(msg.payload.decode())
             incrementa_num_processo()
 
+    print('----------------------------')
 
 def on_publish(client, userdata, mid):
     pass
+
+def rotina_salvar_bds(dados):
+    umidade = int(dados.split(',')[0])
+    data_atual = dados.split(',')[1]
+
+    publica_umidade_atuador(umidade, data_atual)
+
+    salva_umidade_bd(umidade, data_atual)
 
 def salva_umidade_bd(umidade, data_atual):
     molhou = True if umidade < retorna_limiar() else False
 
     insert_query = f"INSERT INTO umidade_terra (data_hora, umidade, molhou) VALUES ('{data_atual}', {umidade}, {molhou});"
     try:
-        cur.execute(insert_query)
-        conn.commit()
+        executa_query(insert_query)
+
     except psycopg2.errors.UniqueViolation as e:
         print('ERRO DUPLICACAO')
+        
         alter_query = f"ALTER SEQUENCE umidade_terra_id_seq RESTART WITH {retorna_ultimo_id() + 1};"
         cur.execute(alter_query)
         conn.commit()
@@ -67,6 +79,14 @@ def salva_retorativo_umidade_bd(dado):
     insert_query = f"INSERT INTO umidade_terra (data_hora, umidade, molhou) VALUES ('{dado[0]}', {dado[1]}, {dado[2]});"
     cur.execute(insert_query)
     conn.commit()
+
+def publica_umidade_atuador(umidade, data_atual):
+    if (umidade < retorna_limiar()):
+        print("Enviado: " + str(umidade))
+        dados_enviar = f'{str(umidade)},{data_atual}'
+        client.publish("/molhar", dados_enviar)
+    else: 
+        print('não é necessário publicar')
 
 def retorna_ultimo_id():
     select_query = 'SELECT MAX(id) FROM umidade_terra;'
@@ -114,15 +134,15 @@ def retorna_num_processo():
 
 def incrementa_num_processo():
     num_novo = retorna_num_processo() + 1
-
     update_query = f'UPDATE controle_processo SET num_processo = {num_novo};'
+    executa_query(update_query)
 
-    cur.execute(update_query)
+def executa_query(query):
+    cur.execute(query)
     conn.commit()
 
-    cur2.execute(update_query)
+    cur2.execute(query)
     conn2.commit()
-
 
 client = mqtt.Client()
 client.connect(broker_mqtt, port_mqtt)
