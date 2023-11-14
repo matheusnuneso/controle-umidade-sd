@@ -29,4 +29,4 @@ data_crypto = cipher.encrypt(data.encode()).decode()
 
 client.publish("/umidade", data_crypto)
 print(data)
-time.sleep(delay)
+#time.sleep(delay)
