@@ -1,0 +1,11 @@
+SELECT * FROM umidade_terra;
+
+SELECT * FROM (SELECT * FROM umidade_terra ORDER BY id DESC LIMIT 10) AS ultimos_10 ORDER BY id;
+
+SELECT * FROM limiar;
+
+SELECT * FROM controle_processo;
+
+ALTER SEQUENCE umidade_terra_id_seq RESTART WITH 1;
+
+DELETE FROM umidade_terra;
