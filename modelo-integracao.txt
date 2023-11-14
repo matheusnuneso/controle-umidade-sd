@@ -1,0 +1,20 @@
+Dentro do sistema temos 5 nós, são eles:
+
+1- Sensor: monitora a umidade do solo de tempo em tempo, e a cada monitoramento que faz, ele publica essa umidade junto com a data e a hora em um servidor MQTT
+
+2- Atuador: subscreve os dados que forem publicados no servidor MQTT (/molhar) e a cada vez que é publicado um dado nesse caminho, ele deverá abrir a válvula e molhar a terra (por enquanto ele só printa que está molhando)
+
+3 e 4- Os controladores:
+-- existem dois controladores, e em suma fazem a mesma coisa
+-- Subscrevem os dados que o sensor manda para o servidor MQTT, faz a lógica para que se estiver abaixo do limiar (info do bd) ele publica para que o atuador seja acionado
+-- Como existem 2 controladores, eles revezam entre si:
+
+---- Existe uma variavel comum entre os dois, que é um inteiro, essa variavel é incrementada a cada dado que o sensor publica
+---- Se caso essa variavel for impar, o controlador1 que vai fazer a lógica de salvar nos bds e publicar no servidor MQTT
+---- Caso ela seja par, o controlador1 verifica se o controlador2 está on, se estiver o controlador1 não faz nada e deixa pro controlador2 resolver
+---- Agora se o controlador2 estiver off, aí o controlador1 toma a responsabilidade de fazer a tarefa
+
+---- a mesma coisa acontece com o controlador2, porém só se a variavel for par
+
+5- Cliente: é ele que controla o sistema de forma amigável, nele é possível ver os dados que foram salvos e alterar o limiar
+---- Dentro do cliente está a lógica para sortear um controlador para servi-lo, se caso esse controlador sorteado estiver off, então ele tenta o outro

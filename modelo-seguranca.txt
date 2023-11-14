@@ -1,0 +1,5 @@
+A parte mais critica do projeto é o sensor, onde ele pode, de alguma forma, ser trocado ou invadido e começar a publicar dados falsos
+
+- para isso o sensor original manda os dados criptografados com uma chave
+- e os controladores descriptografam essa mensagem com essa mesma chave
+- então caso os dados não baterem com o padrão exigido, os dados do sensor são rejeitados

@@ -1,0 +1,18 @@
+As falhas que podem ocorrer são basicamente 2:
+
+1- Os Nós (controladores e bancos) do sistema ficarem inoperantes
+2- O sensor começar a publicar dados fora do padrão imposto 
+
+1-
+BANCO CAIR:
+-- se caso um dos bancos cairem, os controladores conseguem acessar e trabalhar com o outro que ainda está ativo
+-- e quando o banco que tinha caído voltar, os dados serão sincronizados para que os dois bancos estejam iguais
+
+CONTROLADOR CAIR:
+-- se caso um controlador cair, o clinete ainda conseguirá usar o que ainda está ativo
+-- e esse controlador ativo terá que atuar em todos os dados que o sensor publicar, salvando nos bancos e publicando para o atuador quando for necessário
+
+2-
+SENSOR publicar dados inconsistenes
+-- caso o sensor comece, por algum motivo, publicar dados inconsistentes no sistema, esses dados serão rejeitado
+-- pois os controladores possuem uma validação, para que antes de salvar no banco ou publicar para o atuador, verifiquem os dados que foram enviados pelo sensor
