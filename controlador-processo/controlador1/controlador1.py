@@ -3,6 +3,8 @@ import psycopg2
 from datetime import datetime
 import rpyc
 
+timeout_conexao_bd = 2
+
 # Parâmetros de conexão com o bd
 dbname = 'postgres'
 user = 'postgres'
@@ -62,14 +64,38 @@ def rotina_salvar_bds(dados):
 
 def verifica_sincronismo_bds(banco1_ativo, banco2_ativo):
     
-    if(banco1_ativo and banco2_ativo):
-        select_query = 'SELECT MAX(id) FROM umidade_terra;'
-        dados = executa_select_query_2_bancos(select_query)
+    try:
+        if(banco1_ativo and banco2_ativo):
+            select_query = 'SELECT MAX(id) FROM umidade_terra;'
+            dados = executa_select_query_2_bancos(select_query)
 
-        print('SELECT DOS BANCOS')
-        print(dados[0])
-        print(dados[1])
+            ultimo_id_bd1 = dados[0]
+            ultimo_id_bd2 = dados[1]
 
+            #significa que o bd2 está atrasado
+            if(ultimo_id_bd1 > ultimo_id_bd2):
+                print('Banco 2 está atrasado')
+                lista_dados_perdidos = retorna_dados_perdidos(ultimo_id_bd2 + 1, ultimo_id_bd1, string_connetion_bd1)
+
+                for dado in lista_dados_perdidos:
+                    print(dado)
+                    salva_retorativo_umidade_bd(string_connetion_bd2, dado)
+
+            #significa que o bd1 está atrasado
+            elif(ultimo_id_bd2 > ultimo_id_bd1):
+                print('Banco 1 está atrasado')
+                lista_dados_perdidos = retorna_dados_perdidos(ultimo_id_bd1 + 1, ultimo_id_bd2, string_connetion_bd2)
+
+                for dado in lista_dados_perdidos:
+                    print(dado)
+                    salva_retorativo_umidade_bd(string_connetion_bd1, dado)
+    except TypeError:
+        pass
+
+def retorna_dados_perdidos(id_inicio, id_fim, string_bd):
+    select_query = f'SELECT data_hora, umidade, molhou FROM umidade_terra WHERE id BETWEEN {id_inicio} AND {id_fim} ORDER BY id;'
+    dados = executa_select_bd_escolhido(string_bd, select_query)
+    return [(data_hora.strftime("%Y-%m-%d %H:%M:%S"), umidade, molhou) for data_hora, umidade, molhou in dados]
 
 def salva_umidade_bd(umidade, data_atual):
     molhou = True if umidade < retorna_limiar() else False
@@ -77,9 +103,9 @@ def salva_umidade_bd(umidade, data_atual):
     insert_query = f"INSERT INTO umidade_terra (data_hora, umidade, molhou) VALUES ('{data_atual}', {umidade}, {molhou});"
     executa_query(insert_query)
 
-def salva_retorativo_umidade_bd(dado):
+def salva_retorativo_umidade_bd(string_bd, dado):
     insert_query = f"INSERT INTO umidade_terra (data_hora, umidade, molhou) VALUES ('{dado[0]}', {dado[1]}, {dado[2]});"
-    executa_query(insert_query)
+    executa_query_bd_escolhido(string_bd, insert_query)
 
 def publica_umidade_atuador(umidade, data_atual):
     if (umidade < retorna_limiar()):
@@ -140,14 +166,14 @@ def incrementa_num_processo():
 def executa_query(query):
     conn = None
     try:
-        conn = psycopg2.connect(string_connetion_bd1)
+        conn = psycopg2.connect(string_connetion_bd1, connect_timeout=timeout_conexao_bd)
         cur = conn.cursor()
 
         cur.execute(query)
         conn.commit()
 
     except psycopg2.OperationalError as e:
-        print('BANCO 1 fora')
+        print('BANCO 1 fora +++ EXECUTA QUERY')
 
     finally:
         if(conn):
@@ -155,14 +181,14 @@ def executa_query(query):
 
     conn2 = None
     try:
-        conn2 = psycopg2.connect(string_connetion_bd2)
+        conn2 = psycopg2.connect(string_connetion_bd2, connect_timeout=timeout_conexao_bd)
         cur2 = conn2.cursor()
 
         cur2.execute(query)
         conn2.commit()
 
     except psycopg2.OperationalError as e:
-        print('BANCO 2 fora')
+        print('BANCO 2 fora +++ EXECUTA QUERY')
 
     finally:
         if(conn2):
@@ -172,22 +198,22 @@ def executa_select_query(query):
     conn = None
     conn2 = None
     try:
-        conn = psycopg2.connect(string_connetion_bd1)
+        conn = psycopg2.connect(string_connetion_bd1, connect_timeout=timeout_conexao_bd)
         cur = conn.cursor()
 
         cur.execute(query)
         return cur.fetchone()[0]
     except psycopg2.OperationalError as e:
-        print('BANCO 1 fora')
+        print('BANCO 1 fora +++ SELECT QUERY')
 
         try:
-            conn2 = psycopg2.connect(string_connetion_bd2)
+            conn2 = psycopg2.connect(string_connetion_bd2, connect_timeout=timeout_conexao_bd)
             cur2 = conn2.cursor()
             cur2.execute(query)
             return cur2.fetchone()[0]
 
         except psycopg2.OperationalError as e:
-            print('BANCO 2 fora')
+            print('BANCO 2 fora +++ SELECT QUERY')
 
         finally:
             if(conn2):
@@ -198,13 +224,13 @@ def executa_select_query(query):
             conn.close()
 
 def executa_select_query_2_bancos(query):
-    conn = psycopg2.connect(string_connetion_bd1)
+    conn = psycopg2.connect(string_connetion_bd1, connect_timeout=timeout_conexao_bd)
     cur = conn.cursor()
     cur.execute(query)
     dados_banco1 = cur.fetchone()[0]
     conn.close()
 
-    conn2 = psycopg2.connect(string_connetion_bd2)
+    conn2 = psycopg2.connect(string_connetion_bd2, connect_timeout=timeout_conexao_bd)
     cur2 = conn2.cursor()
     cur2.execute(query)
     dados_banco2 = cur2.fetchone()[0]
@@ -212,10 +238,25 @@ def executa_select_query_2_bancos(query):
 
     return [dados_banco1, dados_banco2]
 
+def executa_select_bd_escolhido(string_bd, query):
+    conn = psycopg2.connect(string_bd, connect_timeout=timeout_conexao_bd)
+    cur = conn.cursor()
+    cur.execute(query)
+    dados = cur.fetchall()
+    conn.close()
+
+    return dados
+
+def executa_query_bd_escolhido(string_bd, query):
+    conn = psycopg2.connect(string_bd, connect_timeout=timeout_conexao_bd)
+    cur = conn.cursor()
+    cur.execute(query)
+    conn.commit()
+
 def verifica_conexao_bd(string_conexao):
     conn_teste = None
     try:
-        conn_teste = psycopg2.connect(string_conexao)
+        conn_teste = psycopg2.connect(string_conexao, connect_timeout=timeout_conexao_bd)
         cur_teste = conn_teste.cursor()
         cur_teste.execute("SELECT 1")
         resultado = cur_teste.fetchone()
