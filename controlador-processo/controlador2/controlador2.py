@@ -144,30 +144,6 @@ def retorna_ultimo_id():
     ultimo_id = executa_select_query(select_query)
     return ultimo_id
 
-def equipara_dados(umidade, data_atual):
-    id_meu = retorna_ultimo_id()
-
-    try:
-        proxy = rpyc.connect('localhost', port_rcp, config={'allow_public_attrs': True})
-        id_outro = proxy.root.retorna_ultimo_id()
-
-        #esse processo está atrasado
-        if(id_meu < id_outro):
-            lista_dados_perdidos = proxy.root.retorna_dados_perdidos(id_meu + 1, id_outro)
-
-            limiar_atual = proxy.root.retorna_limiar()
-            altera_limiar(limiar_atual)
-
-            for dado in lista_dados_perdidos:
-                salva_retorativo_umidade_bd(dado)
-
-        else:
-            salva_umidade_bd(umidade, data_atual)
-
-    except (EOFError, TypeError, ConnectionRefusedError) as e:
-        print("Outro servidor fora")
-        salva_umidade_bd(umidade, data_atual)
-
 def retorna_limiar():
     select_query = 'SELECT * FROM limiar;'
     limiar = executa_select_query(select_query)
