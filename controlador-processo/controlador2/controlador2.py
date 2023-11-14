@@ -1,7 +1,9 @@
+import re
 import paho.mqtt.client as mqtt
 import psycopg2
 from datetime import datetime
 import rpyc
+from cryptography.fernet import Fernet, InvalidToken
 
 timeout_conexao_bd = 2
 
@@ -27,28 +29,50 @@ def on_connect(client, userdata, flags, rc):
 
 def on_message(client, userdata, msg):
     num_processo = int(retorna_num_processo())
+    dado = msg.payload.decode()
+    dado_decrypt = decrypt_msg(dado)
 
-    #se for par, eu faço
-    #se não, verifico se o outro está on
-    #se estiver on, ele faz. Caso esteja off, eu faço
-    if(num_processo % 2 == 0):
-        rotina_salvar_bds(msg.payload.decode())
-        incrementa_num_processo()
+    if(dado_decrypt):
+
+        #se for par, eu faço
+        #se não, verifico se o outro está on
+        #se estiver on, ele faz. Caso esteja off, eu faço
+        if(num_processo % 2 == 0):
+            rotina_salvar_bds(dado_decrypt)
+            incrementa_num_processo()
+
+        else:
+            try:
+                proxy = rpyc.connect('localhost', port_rcp, config={'allow_public_attrs': True})
+                if(proxy.root.ta_vivo()):
+                    print('OUTRO faz')
+
+            except ConnectionRefusedError:
+                rotina_salvar_bds(dado_decrypt)
+                incrementa_num_processo()
 
     else:
-        try:
-            proxy = rpyc.connect('localhost', port_rcp, config={'allow_public_attrs': True})
-            if(proxy.root.ta_vivo()):
-                print('OUTRO faz')
-
-        except ConnectionRefusedError:
-            rotina_salvar_bds(msg.payload.decode())
-            incrementa_num_processo()
+        print('Dados não reconhecidos')
 
     print('----------------------------')
 
 def on_publish(client, userdata, mid):
     pass
+
+def decrypt_msg(dado):
+    chave_criptografia = 'H4IjB9PjnThC1V54d6R0r8vOB7Tdw1V1wN-MdZAZABc='.encode()
+    cipher = Fernet(chave_criptografia)
+
+    try:
+        dado_decrypt = cipher.decrypt(dado).decode()
+
+        if(verifica_padrao_crypto(dado_decrypt)):
+            return dado_decrypt
+        
+        else:
+            return False
+    except InvalidToken:
+        print('Token não reconhecido')
 
 def rotina_salvar_bds(dados):
     umidade = int(dados.split(',')[0])
@@ -268,6 +292,11 @@ def verifica_conexao_bd(string_conexao):
     finally:
         if(conn_teste):
             conn_teste.close()
+
+def verifica_padrao_crypto(data):
+    padrao = r'^\d+,\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$'
+    correspondencia = re.match(padrao, data)
+    return bool(correspondencia)
 
 client = mqtt.Client()
 client.connect(broker_mqtt, port_mqtt)

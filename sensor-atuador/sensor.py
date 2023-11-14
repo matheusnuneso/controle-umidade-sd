@@ -25,7 +25,7 @@ data_atual = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
 data = umidade + ',' + data_atual
 
-data_crypto = cipher.encrypt(data.encode())
+data_crypto = cipher.encrypt(data.encode()).decode()
 
 client.publish("/umidade", data_crypto)
 print(data)
