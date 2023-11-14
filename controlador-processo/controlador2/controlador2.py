@@ -26,11 +26,10 @@ def on_connect(client, userdata, flags, rc):
 def on_message(client, userdata, msg):
     num_processo = int(retorna_num_processo())
 
-    #se for impar, eu faço
+    #se for par, eu faço
     #se não, verifico se o outro está on
     #se estiver on, ele faz. Caso esteja off, eu faço
     if(num_processo % 2 == 0):
-        #print('EU vou fazer - ' + str(num_processo))
         rotina_salvar_bds(msg.payload.decode())
         incrementa_num_processo()
 
@@ -41,7 +40,6 @@ def on_message(client, userdata, msg):
                 print('OUTRO faz')
 
         except ConnectionRefusedError:
-            #print('EU vou fazer - ' + str(num_processo))
             rotina_salvar_bds(msg.payload.decode())
             incrementa_num_processo()
 
@@ -56,7 +54,22 @@ def rotina_salvar_bds(dados):
 
     publica_umidade_atuador(umidade, data_atual)
 
+    banco1_ativo = verifica_conexao_bd(string_connetion_bd1)
+    banco2_ativo = verifica_conexao_bd(string_connetion_bd2)
+    verifica_sincronismo_bds(banco1_ativo, banco2_ativo)
+
     salva_umidade_bd(umidade, data_atual)
+
+def verifica_sincronismo_bds(banco1_ativo, banco2_ativo):
+    
+    if(banco1_ativo and banco2_ativo):
+        select_query = 'SELECT MAX(id) FROM umidade_terra;'
+        dados = executa_select_query_2_bancos(select_query)
+
+        print('SELECT DOS BANCOS')
+        print(dados[0])
+        print(dados[1])
+
 
 def salva_umidade_bd(umidade, data_atual):
     molhou = True if umidade < retorna_limiar() else False
@@ -171,6 +184,36 @@ def executa_select_query(query):
     finally:
         if(conn):
             conn.close()
+
+def executa_select_query_2_bancos(query):
+    conn = psycopg2.connect(string_connetion_bd1)
+    cur = conn.cursor()
+    cur.execute(query)
+    dados_banco1 = cur.fetchone()[0]
+    conn.close()
+
+    conn2 = psycopg2.connect(string_connetion_bd2)
+    cur2 = conn2.cursor()
+    cur2.execute(query)
+    dados_banco2 = cur2.fetchone()[0]
+    conn2.close()
+
+    return [dados_banco1, dados_banco2]
+
+def verifica_conexao_bd(string_conexao):
+    try:
+        conn_teste = psycopg2.connect(string_conexao)
+        cur_teste = conn_teste.cursor()
+        cur_teste.execute("SELECT 1")
+        resultado = cur_teste.fetchone()
+        return resultado == (1,)
+    
+    except Exception:
+        return False
+    
+    finally:
+        if conn_teste:
+            conn_teste.close()
 
 client = mqtt.Client()
 client.connect(broker_mqtt, port_mqtt)
