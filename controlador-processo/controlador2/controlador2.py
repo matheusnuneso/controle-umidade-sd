@@ -11,11 +11,8 @@ host = 'localhost'
 port_bd1 = '5432'
 port_bd2 = '5433'
 
-conn = psycopg2.connect(f"dbname='{dbname}' user='{user}' password='{password}' host='{host}' port='{port_bd1}'")
-cur = conn.cursor()
-
-conn2 = psycopg2.connect(f"dbname='{dbname}' user='{user}' password='{password}' host='{host}' port='{port_bd2}'")
-cur2 = conn2.cursor()
+string_connetion_bd1 = f"dbname='{dbname}' user='{user}' password='{password}' host='{host}' port='{port_bd1}'"
+string_connetion_bd2 = f"dbname='{dbname}' user='{user}' password='{password}' host='{host}' port='{port_bd2}'"
 
 # conexão com o mqtt-server
 broker_mqtt="localhost"
@@ -65,20 +62,11 @@ def salva_umidade_bd(umidade, data_atual):
     molhou = True if umidade < retorna_limiar() else False
 
     insert_query = f"INSERT INTO umidade_terra (data_hora, umidade, molhou) VALUES ('{data_atual}', {umidade}, {molhou});"
-    try:
-        executa_query(insert_query)
-
-    except psycopg2.errors.UniqueViolation as e:
-        print('ERRO DUPLICACAO')
-        
-        alter_query = f"ALTER SEQUENCE umidade_terra_id_seq RESTART WITH {retorna_ultimo_id() + 1};"
-        cur.execute(alter_query)
-        conn.commit()
+    executa_query(insert_query)
 
 def salva_retorativo_umidade_bd(dado):
     insert_query = f"INSERT INTO umidade_terra (data_hora, umidade, molhou) VALUES ('{dado[0]}', {dado[1]}, {dado[2]});"
-    cur.execute(insert_query)
-    conn.commit()
+    executa_query(insert_query)
 
 def publica_umidade_atuador(umidade, data_atual):
     if (umidade < retorna_limiar()):
@@ -90,8 +78,8 @@ def publica_umidade_atuador(umidade, data_atual):
 
 def retorna_ultimo_id():
     select_query = 'SELECT MAX(id) FROM umidade_terra;'
-    cur.execute(select_query)
-    return cur.fetchone()[0]
+    ultimo_id = executa_select_query(select_query)
+    return ultimo_id
 
 def equipara_dados(umidade, data_atual):
     id_meu = retorna_ultimo_id()
@@ -119,18 +107,17 @@ def equipara_dados(umidade, data_atual):
 
 def retorna_limiar():
     select_query = 'SELECT * FROM limiar;'
-    cur.execute(select_query)
-    return cur.fetchone()[0]
+    limiar = executa_select_query(select_query)
+    return limiar
 
 def altera_limiar(novo_limiar):
     update_query = f"UPDATE limiar SET limiar = {novo_limiar};"
-    cur.execute(update_query)
-    conn.commit()
+    executa_query(update_query)
 
 def retorna_num_processo():
     select_query = 'SELECT * FROM controle_processo;'
-    cur.execute(select_query)
-    return cur.fetchone()[0]
+    num_processo = executa_select_query(select_query)
+    return num_processo
 
 def incrementa_num_processo():
     num_novo = retorna_num_processo() + 1
@@ -138,11 +125,52 @@ def incrementa_num_processo():
     executa_query(update_query)
 
 def executa_query(query):
-    cur.execute(query)
-    conn.commit()
+    try:
+        conn = psycopg2.connect(string_connetion_bd1)
+        cur = conn.cursor()
 
-    cur2.execute(query)
-    conn2.commit()
+        cur.execute(query)
+        conn.commit()
+
+    except psycopg2.OperationalError as e:
+        print('BANCO 1 fora')
+
+    try:
+        conn2 = psycopg2.connect(string_connetion_bd2)
+        cur2 = conn2.cursor()
+
+        cur2.execute(query)
+        conn2.commit()
+
+    except psycopg2.OperationalError as e:
+        print('BANCO 2 fora')
+
+def executa_select_query(query):
+    try:
+        conn = psycopg2.connect(string_connetion_bd1)
+        cur = conn.cursor()
+
+        cur.execute(query)
+        return cur.fetchone()[0]
+    except psycopg2.OperationalError as e:
+        print('BANCO 1 fora')
+
+        try:
+            conn2 = psycopg2.connect(string_connetion_bd2)
+            cur2 = conn2.cursor()
+            cur2.execute(query)
+            return cur2.fetchone()[0]
+
+        except psycopg2.OperationalError as e:
+            print('BANCO 2 fora')
+
+        finally:
+            if(conn2):
+                conn2.close()
+
+    finally:
+        if(conn):
+            conn.close()
 
 client = mqtt.Client()
 client.connect(broker_mqtt, port_mqtt)
