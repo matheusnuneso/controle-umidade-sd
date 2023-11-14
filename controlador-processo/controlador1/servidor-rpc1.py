@@ -44,6 +44,9 @@ class Servidor1(rpyc.Service):
         select_query = 'SELECT * FROM limiar;'
         cur.execute(select_query)
         return cur.fetchone()[0]
+    
+    def exposed_ta_vivo(self):
+        return True
 
 t = ThreadedServer(Servidor1, port=18861)
 t.start()

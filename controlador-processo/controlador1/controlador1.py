@@ -8,33 +8,44 @@ dbname = 'postgres'
 user = 'postgres'
 password = '123456'
 host = 'localhost' 
-port = '5432'
+port_bd1 = '5432'
+port_bd2 = '5433'
 
-conn = psycopg2.connect(f"dbname='{dbname}' user='{user}' password='{password}' host='{host}' port='{port}'")
+conn = psycopg2.connect(f"dbname='{dbname}' user='{user}' password='{password}' host='{host}' port='{port_bd1}'")
 cur = conn.cursor()
 
-# conexão com o mqtt-server
-broker="localhost"
-port=1883
+conn2 = psycopg2.connect(f"dbname='{dbname}' user='{user}' password='{password}' host='{host}' port='{port_bd2}'")
+cur2 = conn2.cursor()
 
-# limite da umidade
-limiar = 50
+# conexão com o mqtt-server
+broker_mqtt="localhost"
+port_mqtt=1883
+
+port_rcp = 18862
 
 def on_connect(client, userdata, flags, rc):
     client.subscribe("/umidade")
 
 def on_message(client, userdata, msg):
-    dados = msg.payload.decode()
+    num_processo = int(retorna_num_processo())
 
-    umidade = int(dados.split(',')[0])
-    data_atual = dados.split(',')[1]
+    #se for impar, eu faço
+    #se não, verifico se o outro está on
+    #se estiver on, ele faz. Caso esteja off, eu faço
+    if(num_processo % 2 != 0):
+        print('EU vou fazer - ' + str(num_processo))
+        incrementa_num_processo()
 
-    equipara_dados(umidade, data_atual)
-    
-    if (umidade < retorna_limiar()):
-        print("Enviado: " + str(umidade))
-        dados_enviar = f'{str(umidade)},{data_atual}'
-        client.publish("/molhar", dados_enviar)
+    else:
+        try:
+            proxy = rpyc.connect('localhost', port_rcp, config={'allow_public_attrs': True})
+            if(proxy.root.ta_vivo()):
+                print('OUTRO faz')
+
+        except ConnectionRefusedError:
+            print('EU vou fazer - ' + str(num_processo))
+            incrementa_num_processo()
+
 
 def on_publish(client, userdata, mid):
     pass
@@ -66,7 +77,7 @@ def equipara_dados(umidade, data_atual):
     id_meu = retorna_ultimo_id()
 
     try:
-        proxy = rpyc.connect('localhost', 18862, config={'allow_public_attrs': True})
+        proxy = rpyc.connect('localhost', port_rcp, config={'allow_public_attrs': True})
         id_outro = proxy.root.retorna_ultimo_id()
 
         #esse processo está atrasado
@@ -96,8 +107,25 @@ def altera_limiar(novo_limiar):
     cur.execute(update_query)
     conn.commit()
 
+def retorna_num_processo():
+    select_query = 'SELECT * FROM controle_processo;'
+    cur.execute(select_query)
+    return cur.fetchone()[0]
+
+def incrementa_num_processo():
+    num_novo = retorna_num_processo() + 1
+
+    update_query = f'UPDATE controle_processo SET num_processo = {num_novo};'
+
+    cur.execute(update_query)
+    conn.commit()
+
+    cur2.execute(update_query)
+    conn2.commit()
+
+
 client = mqtt.Client()
-client.connect(broker, port)
+client.connect(broker_mqtt, port_mqtt)
 client.on_connect = on_connect
 client.on_message = on_message
 client.on_publish = on_publish
