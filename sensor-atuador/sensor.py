@@ -2,6 +2,10 @@ import paho.mqtt.client as paho
 import random
 import time
 from datetime import datetime
+from cryptography.fernet import Fernet
+
+chave_criptografia = 'H4IjB9PjnThC1V54d6R0r8vOB7Tdw1V1wN-MdZAZABc='.encode()
+cipher = Fernet(chave_criptografia)
 
 broker="localhost"
 port=1883
@@ -21,6 +25,8 @@ data_atual = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
 data = umidade + ',' + data_atual
 
-client.publish("/umidade", data)
+data_crypto = cipher.encrypt(data.encode())
+
+client.publish("/umidade", data_crypto)
 print(data)
 time.sleep(delay)
